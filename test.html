@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>ChatBot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f7f7;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        #container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #chat-area {
+            height: 500px; /* Increased height */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #fafafa;
+            margin-bottom: 10px;
+            overflow-y: scroll;
+            scrollbar-width: none;
+        }
+
+        #chat-area::-webkit-scrollbar {
+            display: none;
+        }
+
+        .message {
+            margin-bottom: 10px;
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.user .content {
+            background-color: #007bff;
+            color: #fff;
+            padding: 8px;
+            border-radius: 8px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .message.assistant .content {
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 8px;
+            border-radius: 8px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Scroll to bottom button */
+        #scroll-to-bottom-btn {
+            position: absolute;
+            bottom: 60px;
+            right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+        }
+
+        #scroll-to-bottom-btn:hover {
+            background-color: #0056b3;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <h1>ChatBot</h1>
+
+        <!-- Scroll to Bottom Button -->
+        <button id="scroll-to-bottom-btn" title="Scroll to Bottom">↓</button>
+
+        <div id="chat-area"></div>
+        <div class="input-container">
+            <input type="text" id="keywords" name="keywords" placeholder="Enter your question" required />
+            <button class="send-icon" onclick="chatGPT()">→</button>
+        </div>
+    </div>
+
+    <script>
+        let apiKey = '';
+        let messages = [];
+
+        $(document).ready(function () {
+            $('#loading').hide();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/get-api-key')
+                .then(response => response.json())
+                .then(data => {
+                    apiKey = data.apiKey;
+                    console.log('API Key:', apiKey);
+                });
+        });
+
+        function shouldAnswerQuestion(question) {
+            const blockedKeywords = ["광고", "스팸", "부적절한"];
+            for (const keywords of blockedKeywords) {
+                if (question.includes(keywords)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function chatGPT() {
+            const keywords = document.getElementById('keywords').value;
+
+            if (!shouldAnswerQuestion(keywords)) {
+                alert("부적절한 질문입니다.");
+                return;
+            }
+
+            messages.push({ role: 'user', content: keywords });
+
+            let chatArea = document.getElementById('chat-area');
+            let userMessage = document.createElement('div');
+            userMessage.classList.add('message', 'user');
+            userMessage.innerHTML = '<div class="content">' + keywords + '</div>';
+            chatArea.appendChild(userMessage);
+
+            let typingIndicator = document.createElement('div');
+            typingIndicator.classList.add('message', 'assistant', 'typing-indicator');
+            typingIndicator.innerHTML = '<div class="content">GPT is typing...</div>';
+            chatArea.appendChild(typingIndicator);
+
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            const data = {
+                model: 'gpt-4o-mini',
+                messages: messages,
+                max_tokens: 100,
+                top_p: 1,
+                frequency_penalty: 0.5,
+                presence_penalty: 0.5,
+                temperature: 0.34,
+            }
+
+            $.ajax({
+                url: "https://api.openai.com/v1/chat/completions",
+                method: 'POST',
+                headers: {
+                    Authorization: "Bearer " + apiKey,
+                    'Content-Type': 'application/json',
+                },
+                data: JSON.stringify(data),
+            }).then(function (response) {
+                typingIndicator.remove();
+                const assistantResponse = response.choices[0].message.content;
+                messages.push({ role: 'assistant', content: assistantResponse });
+
+                let assistantMessage = document.createElement('div');
+                assistantMessage.classList.add('message', 'assistant');
+                let assistantContent = document.createElement('div');
+                assistantContent.classList.add('content');
+                assistantMessage.appendChild(assistantContent);
+                chatArea.appendChild(assistantMessage);
+
+                let index = 0;
+                function typeWriter() {
+                    if (index < assistantResponse.length) {
+                        assistantContent.innerHTML += assistantResponse.charAt(index);
+                        index++;
+                        setTimeout(typeWriter, 1);
+                    }
+                }
+                typeWriter();
+
+                chatArea.scrollTop = chatArea.scrollHeight;
+            });
+
+            document.getElementById('keywords').value = '';
+        }
+
+        document.getElementById('keywords').addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                chatGPT();
+            }
+        });
+
+        let chatArea = document.getElementById('chat-area');
+        chatArea.addEventListener('scroll', function () {
+            let scrollBtn = document.getElementById('scroll-to-bottom-btn');
+            if (chatArea.scrollTop < chatArea.scrollHeight - chatArea.clientHeight - 50) {
+                scrollBtn.style.display = 'block';
+            } else {
+                scrollBtn.style.display = 'none';
+            }
+        });
+
+        document.getElementById('scroll-to-bottom-btn').addEventListener('click', function () {
+            chatArea.scrollTop = chatArea.scrollHeight;
+        });
+    </script>
+</body>
+
+</html>
